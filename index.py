@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 import os
 import json
+import re
 
 
 @dataclass
@@ -17,10 +18,16 @@ class Website:
         return cls(**data)
 
 
+# TODO: improve this split regex, I don't like that it is not part of the class
+# and its more an educated guess than a well defined delimiter
+_split_regex = re.compile("[\\s\\.,;:?!\"'\\-_/\\(\\)]+")
+
+
 class Index:
     def __init__(
         self, filename: Optional[Union[os.PathLike[Any], str, bytes]] = None
     ):
+
         if filename is None:
             self.websites: List[Website] = []
             self.words: Dict[str, List[int]] = dict()
@@ -31,7 +38,13 @@ class Index:
             self.websites = list(map(Website.from_json, data["websites"]))
             self.words = data["words"]
 
-    def add_website(self, website: Website, words: List[str]):
+    def _normlize_split_text(self, text: str) -> str:
+        text = text.lower()
+        words = _split_regex.split(text)
+        words = list(set(words))
+        return words
+
+    def add_website(self, website: Website, text: str):
         """
         Add a website to the index.
 
@@ -41,6 +54,7 @@ class Index:
 
         index = len(self.websites)
         self.websites.append(website)
+        words = self._normlize_split_text(text)
 
         for word in words:
             try:
@@ -57,7 +71,7 @@ class Index:
         most websites assosiated with it.
         """
 
-        words = query.lower().split(" ")
+        words = self._normlize_split_text(query)
 
         # Figure out which websites have all the mentioned words
         explored: Dict[int, int] = dict()
@@ -83,5 +97,9 @@ class Index:
     def save(self, filename: Union[os.PathLike[Any], str, bytes]):
         with open(filename, "w") as file:
             json.dump(
-                self.__dict__, file, indent=2, default=lambda o: o.__dict__
+                self.__dict__,
+                file,
+                indent=2,
+                default=lambda o: o.__dict__,
+                ensure_ascii=False,
             )

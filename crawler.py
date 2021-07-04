@@ -6,10 +6,17 @@ from bs4 import BeautifulSoup
 import logging
 from urllib.parse import urldefrag, urljoin
 import concurrent.futures
+import cProfile
+import pstats
 
 
 def download(url: str) -> Tuple[str, BeautifulSoup]:
-    resp = requests.get(url)
+    headers = {
+        "Accept-Language": "en-US",
+        "User-Agent": "tinyDeamon crawler (https://tinyDeamon.com)",
+    }
+
+    resp = requests.get(url, headers=headers)
     if resp.status_code != 200:
         # TODO: improve
         raise Exception()
@@ -20,7 +27,7 @@ def download(url: str) -> Tuple[str, BeautifulSoup]:
     return resp.url, soup
 
 
-def extractMetadata(url: str, body: BeautifulSoup) -> Website:
+def extract_metadata(url: str, body: BeautifulSoup) -> Website:
 
     try:
         name = body.title.get_text()
@@ -45,7 +52,7 @@ def extractMetadata(url: str, body: BeautifulSoup) -> Website:
     )
 
 
-def extractLinks(url: str, body: BeautifulSoup) -> List[str]:
+def extract_links(url: str, body: BeautifulSoup) -> List[str]:
     links = []
     for link in body.find_all("a"):
         link, _ = urldefrag(urljoin(url, link.get("href")))
@@ -53,11 +60,8 @@ def extractLinks(url: str, body: BeautifulSoup) -> List[str]:
     return links
 
 
-def extractWords(body: BeautifulSoup) -> List[str]:
-    # TODO: remove punktuation from words
-    words = body.get_text().split()
-    words = map(lambda w: w.lower(), words)
-    return list(set(words))
+def extract_text(body: BeautifulSoup) -> str:
+    return body.get_text()
 
 
 def main():
@@ -112,11 +116,12 @@ def main():
                 if url in explored:
                     continue
 
-                website = extractMetadata(new_url, body)
-                words = extractWords(body)
+                website = extract_metadata(new_url, body)
+                words = extract_text(body)
                 index.add_website(website, words)
 
-                links = extractLinks(new_url, body)
+                links = extract_links(new_url, body)
+                links = filter(lambda l: l not in explored, links)
                 queue.extend(links)
                 explored.add(url)
                 explored.add(new_url)
@@ -127,3 +132,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # with cProfile.Profile() as prof:
+    #     main()
+
+    # stats = pstats.Stats(prof)
+    # stats.sort_stats(pstats.SortKey.TIME)
+    # stats.dump_stats(filename="crawler.prof")
