@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
+      crossorigin="anonymous"
+    />
+
+    <link rel="shortcut icon" type="image/png" href="static/icon.png" />
+
+    <title>{{query}} | tinyDeamon</title>
+  </head>
+
+  <body>
+    <nav class="navbar navbar-light bg-light">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+          <img
+            src="/static/logo.png"
+            alt=""
+            width="24"
+            height="24"
+            class="d-inline-block align-text-top"
+          />
+          tindyDeamon
+        </a>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="row mt-2">
+        <form action="/">
+          <input
+            name="q"
+            class="form-control form-control"
+            type="text"
+            placeholder="Search the web"
+            aria-label=".form-control-lg example"
+            value="{{query}}"
+          />
+        </form>
+      </div>
+      <div class="row">
+        <div class="col">{{websites | length}} results in {{duration}}</div>
+      </div>
+
+      <div class="mt-4"></div>
+
+      {% for website in websites %}
+      <div class="row">
+        <div class="col">
+          <div class="card mb-3">
+            <div class="card-body">
+              <h5 class="card-title">{{website.name}}</h5>
+              <p class="card-text">
+                <a href="{{website.url}}"
+                  ><img
+                    src="{{website.icon}}"
+                    height="16"
+                    width="16"
+                  />{{website.url}}</a
+                ><br />
+                {{website.description}}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <!-- Option 1: Bootstrap Bundle with Popper -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>

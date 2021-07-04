@@ -112,7 +112,6 @@ def main():
                 if url in explored:
                     continue
 
-                # new_url, body = download(url)
                 website = extractMetadata(new_url, body)
                 words = extractWords(body)
                 index.add_website(website, words)

@@ -57,17 +57,20 @@ class Index:
         most websites assosiated with it.
         """
 
-        words = query.split(" ")
+        words = query.lower().split(" ")
 
         # Figure out which websites have all the mentioned words
         explored: Dict[int, int] = dict()
-        for word in words:
-            indecies = self.words[word]
-            for index in indecies:
-                try:
-                    explored[index] += 1
-                except KeyError:
-                    explored[index] = 1
+        try:
+            for word in words:
+                indecies = self.words[word]
+                for index in indecies:
+                    try:
+                        explored[index] += 1
+                    except KeyError:
+                        explored[index] = 1
+        except KeyError:
+            return []
 
         # only return the websites wich have all the mentioned words
         websites = []
