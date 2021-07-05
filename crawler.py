@@ -16,7 +16,7 @@ def download(url: str) -> Tuple[str, BeautifulSoup]:
         "User-Agent": "tinyDeamon crawler (https://tinyDeamon.com)",
     }
 
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(url, headers=headers, timeout=5)
     if resp.status_code != 200:
         # TODO: improve
         raise Exception()
@@ -125,7 +125,9 @@ def main():
                 queue.extend(links)
                 explored.add(url)
                 explored.add(new_url)
-                logging.info(f"Downloaded {new_url}")
+                logging.info(
+                    f"[{len(index.websites)}/{limit}] Downloaded {new_url}"
+                )
 
     index.save("data.txt")
 
