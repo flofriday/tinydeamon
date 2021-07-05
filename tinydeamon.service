@@ -1,0 +1,13 @@
+Unit]
+Description=tinydeamon
+After=network.target
+
+[Service]
+User=flo
+Group=www-data
+WorkingDirectory=/home/flo/tinydeamon
+Environment="PATH=/home/flo/tinydeamon/venv/bin"
+ExecStart=/home/flo/tinydeamon/venv/bin/uwsgi --ini server.ini
+
+[Install]
+WantedBy=multi-user.target
