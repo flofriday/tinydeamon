@@ -3,6 +3,8 @@
 ![Screenshot](screenshot.png)
 An experimental search engine
 
+**Try it out:** http://tinydeamon.com
+
 ## Run it locally
 
 ### Requirements
@@ -47,3 +49,55 @@ FLASK_APP=server flask run
 **Note:** this will spawn only a development server which is not suited for
 production. Read [this page](https://flask.palletsprojects.com/en/2.0.x/tutorial/deploy/)
 in flasks documentation on how to deploy a flask app.
+
+## Deployment
+
+**Note:** This is how I deployed the service, it is far from perfect and I really want to improve the setup. In no way should this be a recommendation, it is just a mental note for myself.
+
+1. Rent a Ubuntu 20.04 server.
+2. Create an unprivilged user called `flo` with `adduser`
+3. Install python 3.9 (like in this [article](https://linuxize.com/post/how-to-install-python-3-9-on-ubuntu-20-04/))
+
+4. Install python dev and venv with:
+
+```
+sudo apt install python3.9-venv
+sudo apt install python3.9-dev
+```
+
+5. Install nginx (first two steps from this [article](https://www.digitalocean.com/community/tutorials/how-to-install-nginx-on-ubuntu-18-04))
+6. Clone the repo with `git clone https://github.com/flofriday/tinydeamon.git`
+7. Create venv and activate with
+
+```
+python3.9 -m venv venv
+source venv/bin/activate
+```
+
+8. Install the dependencies with:
+
+```
+pip install -r requirements.txt
+pip install uwsgi
+```
+
+9. Intall the service file with:
+
+```
+sudo cp /home/flo/tinydeamon/tinydeamon.service /etc/systemd/system/
+```
+
+12. Run the crawler. For example with:
+
+```
+python3 crawler.py --limit 20 https://github.com https://www.bbc.com/
+```
+
+11. Start the service with:
+
+```
+sudo systemctl start tinydeamon
+sudo systemctl enable tinydeamon
+```
+
+12. Configure nginx (described in step 6 of this [article](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-uswgi-and-nginx-on-ubuntu-18-04))
