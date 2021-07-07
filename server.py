@@ -11,9 +11,11 @@ def format_time(ns: int) -> str:
     if ns < 1000:
         return f"{ns}ns"
     elif ns < 1000_000:
-        return f"{ns/1000:.2f}ms"
+        return f"{ns/1000:.2f}μs"
+    elif ns < 1000_000_000:
+        return f"{ns/1000_000:.2f}ms"
     else:
-        return f"{ns/1000_000:.2f}s"
+        return f"{ns/1000_000_000:.2f}s"
 
 
 @app.route("/")
