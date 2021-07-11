@@ -1,0 +1,26 @@
+.result-card a {
+  text-decoration: none;
+}
+
+.result-card a:hover {
+  text-decoration: underline;
+}
+
+a.result-raw-url {
+  color: green;
+}
+
+.result-card:hover {
+  cursor: pointer;
+}
+
+.result-header-link:visited {
+  color: #6c00a2;
+}
+
+.result-icon {
+  margin-right: 6px;
+  height: 16px;
+  width: 16px;
+  /* margin-bottom: 2px; */
+}

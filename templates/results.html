@@ -14,12 +14,13 @@
     />
 
     <link rel="shortcut icon" type="image/png" href="static/icon.png" />
+    <link rel="stylesheet" href="/static/results.css" />
 
     <title>{{query}} | tinyDeamon</title>
   </head>
 
   <body>
-    <nav class="navbar navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
       <div class="container-fluid">
         <a class="navbar-brand" href="/">
           <img
@@ -31,6 +32,15 @@
           />
           tinyDeamon
         </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarText">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+           <li class="nav-item">
+              <a class="nav-link" href="https://github.com/flofriday/tinydeamon">Github</a>
+            </li>
+        </div>
       </div>
     </nav>
 
@@ -56,18 +66,22 @@
       {% for website in websites %}
       <div class="row">
         <div class="col">
-          <div class="card mb-3">
-            <div class="card-body">
-              <h5 class="card-title">{{website.name}}</h5>
+          <div class="card mb-3 result-card">
+            <div class="card-body" onclick="location.href='{{website.url}}'">
+              <a href="{{website.url}}" class="result-header-link"
+                ><h5 class="card-title">{{website.name}}</h5></a
+              >
               <p class="card-text">
-                <a href="{{website.url}}"
+                <a class="result-raw-url" href="{{website.url}}"
                   ><img
+                    class="result-icon"
                     src="{{website.icon}}"
-                    height="16"
-                    width="16"
+                    onerror="this.style.display='none'"
                   />{{website.url}}</a
                 ><br />
-                {{website.description}}
+                <small>
+                  {{website.description}}
+                </small>
               </p>
             </div>
           </div>

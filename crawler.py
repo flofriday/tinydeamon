@@ -52,7 +52,7 @@ def extract_metadata(url: str, body: BeautifulSoup) -> Website:
             body.find(attrs={"name": "description"}).get("content").strip()
         )
     except AttributeError:
-        description = ""
+        description = extract_text(body)[:400] + "..."
 
     try:
         icon = urljoin(url, body.find("link", rel="icon").get("href"))

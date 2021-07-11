@@ -11,7 +11,7 @@ An experimental search engine
 - Crawler is inpolite
 - Index must fit in memory
 - Crawler cannot be distributed
-- Crawler is single-core
+- Crawler is single-threaded
 - No filters (while I am against censorship, there is content on the internet that is so disturbing that my searchengine shouldn't display it per default)
 
 ## Run it locally
