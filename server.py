@@ -4,7 +4,7 @@ from time import thread_time_ns
 
 app = Flask(__name__)
 
-index = Index(filename="data.txt")
+index = Index(filename="data.json")
 
 
 def format_time(ns: int) -> str:
@@ -22,9 +22,10 @@ def format_time(ns: int) -> str:
 def home():
     query = request.args.get("q", None)
 
-    if query is None:
+    if query is None or query.strip() == "":
         return render_template("home.html")
 
+    query = query.strip()
     start = thread_time_ns()
     websites = index.find(query)
     duration = format_time(thread_time_ns() - start)

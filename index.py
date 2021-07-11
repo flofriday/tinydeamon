@@ -1,47 +1,78 @@
-from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import os
 import json
 import re
+import math
 
 
-@dataclass
 class Website:
-    url: str
-    name: str
-    description: str
-    icon: str
+    """
+    The datastructure that represents a website
+    """
 
-    # TODO: check if there is a better way
-    @classmethod
-    def from_json(cls, data: dict):
-        return cls(**data)
-
-
-# TODO: improve this split regex, I don't like that it is not part of the class
-# and its more an educated guess than a well defined delimiter
-_split_regex = re.compile("[\\s\\.,;:?!\"'\\-_/\\(\\)]+")
+    def __init__(
+        self,
+        url: str,
+        name: str,
+        description: str,
+        icon: str,
+        word_count: Optional[int] = 0,
+    ):
+        self.url = url
+        self.name = name
+        self.description = description
+        self.icon = icon
+        self.word_count = word_count
 
 
 class Index:
+    """
+    The index is the datastructure that enables the searchengine to do fast
+    query lookups.
+    """
+
     def __init__(
         self, filename: Optional[Union[os.PathLike[Any], str, bytes]] = None
     ):
 
+        # TODO: improve this split regex, I don't like that i its more an
+        # educated guess than a well defined delimiter
+        self._split_regex = re.compile("[\\s\\.,;:?!\"'\\-_/\\(\\)]+")
+
         if filename is None:
             self.websites: List[Website] = []
-            self.words: Dict[str, List[int]] = dict()
+            self.words: Dict[str, Dict[int, List[int]]] = dict()
+            self.avg_length: float = 0.0
             return
 
         with open(filename) as file:
             data = json.load(file)
-            self.websites = list(map(Website.from_json, data["websites"]))
-            self.words = data["words"]
+            self.websites = list(
+                map(
+                    lambda d: Website(
+                        d["url"],
+                        d["name"],
+                        d["description"],
+                        d["icon"],
+                        word_count=d["word_count"],
+                    ),
+                    data["websites"],
+                )
+            )
+            self.words = dict()
+            for k, v in data["words"].items():
+                self.words[k] = dict()
+                for k2, v2 in v.items():
+                    self.words[k][int(k2)] = v2
+            self.avg_length = data["avg_length"]
 
-    def _normlize_split_text(self, text: str) -> str:
+    def _normlize_split_text(self, text: str) -> List[str]:
+        """
+        This method normalizes the input text (lowercase) and splits it into
+        words.
+        """
         text = text.lower()
-        words = _split_regex.split(text)
-        words = list(set(words))
+        words = self._split_regex.split(text)
         return words
 
     def add_website(self, website: Website, text: str):
@@ -53,53 +84,102 @@ class Index:
         """
 
         index = len(self.websites)
-        self.websites.append(website)
         words = self._normlize_split_text(text)
+        website.word_count = len(words)
+        self.websites.append(website)
 
-        for word in words:
+        for i, word in enumerate(words):
             try:
-                self.words[word].append(index)
+                self.words[word][index].append(i)
             except KeyError:
-                self.words[word] = [index]
+                try:
+                    self.words[word][index] = [i]
+                except KeyError:
+                    self.words[word] = {index: [i]}
+
+    def _rank_bm25(
+        self,
+        ids: List[int],
+        query: List[str],
+    ) -> List[int]:
+        """
+        This is an implemetation of the Okapi BM25 algorithm. It only checks
+        how good a document and a query matches, but asumes all documents have
+        the same quality (which of course isn't the case on the web).
+
+        Wikipedia: https://en.wikipedia.org/wiki/Okapi_BM25
+        """
+        ranked: List[Tuple[int, float]] = list()
+
+        # Assign ever document a score
+        N = len(self.websites)  # Number of documents
+        avgdl = self.avg_length
+
+        k1 = 1.2  # Tuning variable
+        b = 0.75  # Tuning variable
+        for id in ids:
+            score = 0  # Score of the current document (id)
+
+            D_abs = self.websites[id].word_count
+            for qi in query:
+                try:
+                    f = len(self.words[qi][id])  # Term frequenncy of qi in d
+                except KeyError:
+                    f = 0
+                n = len(self.words[qi])  # Number of documents containing qi
+
+                # inverse term frequency
+                idf = math.log((N - n + 0.51) / (n + 0.5) + 1)
+
+                score += idf * (
+                    (f * (k1 + 1)) / (f + k1 * (1 - b + b * (D_abs / avgdl)))
+                )
+
+            ranked.append((id, score))
+
+        # Sort by the score
+        ranked = sorted(ranked, key=lambda d: d[1], reverse=True)
+        return list(map(lambda d: d[0], ranked))
 
     def find(self, query: str) -> List[Website]:
         """
         Find results for a query.
-
-        Runtime: O(m*k) with m being the number of words in the query and k
-        being the number of websites for the word in the query that has the
-        most websites assosiated with it.
         """
 
         words = self._normlize_split_text(query)
+        ids: Set[int] = set()
 
-        # Figure out which websites have all the mentioned words
-        explored: Dict[int, int] = dict()
-        try:
-            for word in words:
-                indecies = self.words[word]
-                for index in indecies:
-                    try:
-                        explored[index] += 1
-                    except KeyError:
-                        explored[index] = 1
-        except KeyError:
-            return []
+        # Find all sites that have at least one word of the query
+        for word in words:
+            try:
+                current_ids = self.words[word].keys()
+                ids.update(current_ids)
+            except KeyError:
+                continue
 
-        # only return the websites wich have all the mentioned words
-        websites = []
-        for index, num in explored.items():
-            if num >= len(words):
-                websites.append(self.websites[index])
-
+        # Rank the results to show the best on top
+        ids = self._rank_bm25(list(ids), words)
+        websites = list(map(lambda i: self.websites[i], ids))
         return websites
 
-    def save(self, filename: Union[os.PathLike[Any], str, bytes]):
+    def save(
+        self,
+        filename: Union[os.PathLike[Any], str, bytes],
+        debug: Optional[bool] = False,
+    ):
+        # Create a new object, so that only necessary data will be saved
+        obj = dict()
+        obj["websites"] = self.websites
+        obj["words"] = self.words
+        obj["avg_length"] = sum(
+            map(lambda w: w.word_count, self.websites)
+        ) / len(self.websites)
+
         with open(filename, "w") as file:
             json.dump(
-                self.__dict__,
+                obj,
                 file,
-                indent=2,
+                indent=2 if debug else None,
                 default=lambda o: o.__dict__,
                 ensure_ascii=False,
             )

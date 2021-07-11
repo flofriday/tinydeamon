@@ -5,6 +5,15 @@ An experimental search engine
 
 **Try it out:** http://tinydeamon.com
 
+## Limitations
+
+- Basic result ranking ([BM25](https://en.wikipedia.org/wiki/Okapi_BM25))
+- Crawler is inpolite
+- Index must fit in memory
+- Crawler cannot be distributed
+- Crawler is single-core
+- No filters (while I am against censorship, there is content on the internet that is so disturbing that my searchengine shouldn't display it per default)
+
 ## Run it locally
 
 ### Requirements
@@ -37,7 +46,7 @@ and a list of websites with which it should start (this is often called the seed
 For example to index 20 pages, starting with GitHub and BBC we can run:
 
 ```
-python3 crawler.py --limit 20 https://github.com https://www.bbc.com/
+python3 crawler.py --development --limit 20 https://github.com https://www.bbc.com/
 ```
 
 ### Server
