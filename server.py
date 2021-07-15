@@ -4,7 +4,7 @@ from time import thread_time_ns
 
 app = Flask(__name__)
 
-index = Index(filename="data.json")
+index = Index("data/")
 
 
 def format_time(ns: int) -> str:

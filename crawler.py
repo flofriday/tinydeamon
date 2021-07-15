@@ -105,9 +105,9 @@ def main():
     )
     parser.add_argument(
         "--output",
-        default="data.json",
+        default="data/",
         type=str,
-        help="file name in which to store the index (default: data.json)",
+        help="directory name in which to store the index (default: data/)",
     )
     parser.add_argument(
         "seed",
@@ -115,28 +115,21 @@ def main():
         nargs="+",
         help="list of websites to start crawling with",
     )
-    parser.add_argument(
-        "--development",
-        action="store_true",
-        help="If on the output will be saved with nice indendation to be "
-        "human readable, at the cost of disk-space (default: False)",
-    )
     args = parser.parse_args()
 
     # Extract configuration
     print_header("Configuration")
-    index = Index()
     limit = args.limit
     queue: List[str] = args.seed
-    index_file = args.output
-    debug = args.development
+    index_dir = args.output
+    index = Index(index_dir)
 
     seen: Set[str] = set()
     explored: Set[str] = set()
     num_concurrent = 64
     print(f"- Downloading {limit} websites")
     print(f"- Website seed: {queue}")
-    print(f"- Outputfile: {index_file}")
+    print(f"- Outputdirectory: {index_dir}")
 
     # Main loop to discover, process and add new websites
     print_header("Downloading")
@@ -183,14 +176,14 @@ def main():
 
     # Write the index to disk
     logging.info("Saving index...")
-    index.save(index_file, debug=debug)
+    index.save()
     logging.info("Saved index")
 
     print_header("Statistics")
     print(f"- Indexed Websites: {len(index.websites)}")
-    print(f"- Indexed Words: {len(index.words)}")
+    print(f"- Indexed Words: {index.word_count}")
     print(f"- Websites in queue: {len(queue)}")
-    print(f"- Saved in: {index_file}")
+    print(f"- Saved in: {index_dir}")
 
 
 if __name__ == "__main__":
