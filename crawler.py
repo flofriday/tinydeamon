@@ -122,7 +122,7 @@ def main():
     limit = args.limit
     queue: List[str] = args.seed
     index_dir = args.output
-    index = Index(index_dir)
+    index = Index(index_dir, limit * 10)
 
     seen: Set[str] = set()
     explored: Set[str] = set()
@@ -137,7 +137,9 @@ def main():
         num_urls = min(limit - len(index.websites), num_concurrent)
         urls, queue = queue[:num_urls], queue[num_urls:]
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_concurrent
+        ) as executor:
             future_to_url = {
                 executor.submit(download, url): url for url in urls
             }

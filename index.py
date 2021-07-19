@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import os
 import json
@@ -73,17 +74,20 @@ class Index:
                         entry   web_id
     """
 
-    def __init__(self, directory: str):
+    def __init__(self, directory: str, num_segments: Optional[int] = None):
 
         # TODO: improve this split regex, I don't like that i its more an
         # educated guess than a well defined delimiter
-        self._split_regex = re.compile("[\\s\\.,;:?!\"'\\-_/\\(\\)]+")
+        self._split_regex = re.compile(
+            "[\\s\\.,;:?!\"'\\-_/\\(\\)\\[\\]<>%$€]+"
+        )
         self.directory: str = directory
         self.websites_file: str = os.path.join(directory, "websites.json")
         self.config_file: str = os.path.join(directory, "config.json")
         self.words: Dict[str, Dict[int, List[int]]] = dict()
         self.unsaved_words: int = 0
         self.word_count: int = 0
+        self._num_segments = num_segments
 
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
@@ -109,6 +113,7 @@ class Index:
                 config = json.load(file)
                 self.avg_length = config["avg_length"]
                 self.word_count = config["word_count"]
+                self._num_segments = config["num_segments"]
 
     def _normlize_split_text(self, text: str) -> List[str]:
         """
@@ -117,12 +122,17 @@ class Index:
         """
         text = text.lower()
         words = self._split_regex.split(text)
+        words = list(filter(lambda w: w.strip() != "", words))
         return words
 
     def _segment_name(self, word: str) -> str:
         # TODO: the first 6 segments should not be hardcoded but
         # be configurable
-        return (hashlib.md5(word.encode("utf-8"))).hexdigest()[:6]
+        id = (
+            int.from_bytes(hashlib.md5(word.encode("utf-8")).digest(), "big")
+            % self._num_segments
+        )
+        return str(id)
 
     def _segment_to_filename(self, segment_name: str) -> str:
         return os.path.join(self.directory, segment_name + ".index")
@@ -154,7 +164,8 @@ class Index:
                 except KeyError:
                     self.words[word] = {web_id: [i]}
 
-        if self.unsaved_words >= 1000:
+        if self.unsaved_words >= 1000_000:
+            logging.info("Flushing partial index to disk...")
             self._save_words()
 
     def _rank_bm25(
@@ -237,22 +248,28 @@ class Index:
         index = dict()
 
         # Find all sites that have at least one word of the query
-        for word in words:
-            # TODO: Load this in paralell with threadpool
-            index[word] = self._load_segment(word)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            entries = executor.map(self._load_segment, words)
+            for i, entry in enumerate(entries):
+                word = words[i]
+                index[word] = entry
 
-            try:
-                current_ids = index[word].keys()
-                ids.update(current_ids)
-            except KeyError:
-                continue
+                try:
+                    current_ids = index[word].keys()
+                    ids.update(current_ids)
+                except KeyError:
+                    pass
 
         # Rank the results to show the best on top
         ids = self._rank_bm25(index, list(ids), words)
         websites = list(map(lambda i: self.websites[i], ids))
         return websites
 
+    def _make_record(self, word: str, entry: str) -> bytes:
+        return f"{word}:{entry}\n".encode("utf-8")
+
     def _parse_record(self, record: str) -> Tuple[str, str]:
+        record = record.strip()
         lst = record.split(":")
         return (lst[0], lst[1])
 
@@ -269,30 +286,42 @@ class Index:
                 # Merge the new entries with the existing ones, so that they
                 # are alphabetically sorted
                 for line in old_segment:
-                    word, entry = self._parse_record(line)
+                    old_word, old_entry = self._parse_record(line)
+                    written = False
 
-                    if len(entries) > 0 and word == entries[0][0]:
+                    for new_word, new_entry in entries:
+                        if old_word == new_word:
+                            new_segment.write(
+                                self._make_record(
+                                    old_word, old_entry + new_entry
+                                )
+                            )
+                            del entries[0]
+                            written = True
+                            break
+
+                        elif old_word > new_word:
+                            new_segment.write(
+                                self._make_record(new_word, new_entry)
+                            )
+                            del entries[0]
+
+                        else:
+                            new_segment.write(
+                                self._make_record(old_word, old_entry)
+                            )
+                            written = True
+                            break
+
+                    if not written:
                         new_segment.write(
-                            f"{word}:{entry}{entries[0][1]}".encode("utf-8")
+                            self._make_record(old_word, old_entry)
                         )
-                        del entries[0]
-
-                    elif len(entries) > 0 and word > entries[0][0]:
-                        new_segment.write(
-                            f"{entries[0][0]}:{entries[0][1]}".encode("utf-8")
-                        )
-                        new_segment.write(f"{word}:{entry}".encode("utf-8"))
-                        del entries[0]
-
-                    else:
-                        new_segment.write(f"{word}:{entry}".encode("utf-8"))
 
         # Mabye not all entries have been written so write all remaining
         # now
-        while len(entries) > 0:
-            new_segment.write(
-                f"{entries[0][0]}:{entries[0][1]}".encode("utf-8")
-            )
+        for new_word, new_entry in entries:
+            new_segment.write(self._make_record(new_word, new_entry))
             del entries[0]
 
         # Overwrite the old segment with the new one
@@ -314,9 +343,10 @@ class Index:
             except KeyError:
                 segments[segment_name] = [(word, entry_text)]
 
-        # TODO: rewrite with threadpool executor
-        for segment_name, entries in segments.items():
-            self._save_segment(segment_name, entries)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.map(
+                lambda x: self._save_segment(x[0], x[1]), segments.items()
+            )
 
         # Clean up memory
         self.unsaved_words = 0
@@ -338,5 +368,6 @@ class Index:
             map(lambda w: w.word_count, self.websites)
         ) / len(self.websites)
         obj["word_count"] = self.word_count
+        obj["num_segments"] = self._num_segments
         with open(self.config_file, "w") as file:
             json.dump(obj, file)

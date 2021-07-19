@@ -52,7 +52,7 @@ python3 crawler.py --limit 20 https://github.com https://www.bbc.com/
 ### Server
 
 ```
-FLASK_APP=server flask run
+FLASK_APP=server FLASK_ENV=development flask run
 ```
 
 **Note:** this will spawn only a development server which is not suited for
