@@ -16,7 +16,7 @@
     <link rel="shortcut icon" type="image/png" href="static/icon.png" />
     <link rel="stylesheet" href="/static/results.css" />
 
-    <title>{{query}} | tinyDeamon</title>
+    <title>{{query}} - tinyDeamon</title>
   </head>
 
   <body>
@@ -58,7 +58,7 @@
         </form>
       </div>
       <div class="row">
-        <div class="col">{{websites | length}} results in {{duration}}</div>
+        <div class="col"><small class="text-secondary">{{websites | length}} results in {{duration}}</small></div>
       </div>
 
       <div class="mt-4"></div>
@@ -88,6 +88,13 @@
         </div>
       </div>
       {% endfor %}
+
+      {% if websites|length == 0 %}
+        <h1 class="text-center">Nothing found</h1>
+        <div class="text-center">Maybe try another query?</div>
+        <img class="result-empty-img mx-auto d-block" src="/static/undraw_blank_canvas.svg" alt="Empty vector graphic">
+      {% endif %}
+
     </div>
     <!-- Option 1: Bootstrap Bundle with Popper -->
     <script

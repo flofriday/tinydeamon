@@ -24,3 +24,8 @@ a.result-raw-url {
   width: 16px;
   /* margin-bottom: 2px; */
 }
+
+.result-empty-img {
+  width: 50%;
+  margin-top: 24px;
+}
