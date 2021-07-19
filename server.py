@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template
 from index import Index
-from time import thread_time_ns
+from time import time_ns
 
 app = Flask(__name__)
 
@@ -26,9 +26,9 @@ def home():
         return render_template("home.html")
 
     query = query.strip()
-    start = thread_time_ns()
+    start = time_ns()
     websites = index.find(query)
-    duration = format_time(thread_time_ns() - start)
+    duration = format_time(time_ns() - start)
 
     return render_template(
         "results.html", duration=duration, query=query, websites=websites
