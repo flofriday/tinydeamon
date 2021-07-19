@@ -3,7 +3,7 @@
 ![Screenshot](screenshot.png)
 An experimental search engine
 
-**Try it out:** http://tinydeamon.com
+**Try it out:** https://tinydeamon.com
 
 ## Limitations
 
