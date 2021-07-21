@@ -1,3 +1,4 @@
+from os import removedirs
 from index import Index, Website
 from typing import List, Set, Tuple
 import argparse
@@ -6,6 +7,8 @@ from bs4 import BeautifulSoup
 import logging
 from urllib.parse import urldefrag, urljoin
 import concurrent.futures
+from util import format_time
+from time import time_ns
 
 
 def print_header(text: str):
@@ -118,23 +121,24 @@ def main():
     args = parser.parse_args()
 
     # Extract configuration
-    print_header("Configuration")
     limit = args.limit
     queue: List[str] = args.seed
     index_dir = args.output
-    index = Index(index_dir, limit * 10)
+    index = Index(index_dir, limit * 10, delete_existing=True)
 
     seen: Set[str] = set()
     explored: Set[str] = set()
     num_concurrent = 64
+    print_header("Configuration")
     print(f"- Downloading {limit} websites")
     print(f"- Website seed: {queue}")
     print(f"- Outputdirectory: {index_dir}")
 
     # Main loop to discover, process and add new websites
+    start = time_ns()
     print_header("Downloading")
     while len(index.websites) < limit and len(queue) > 0:
-        num_urls = min(limit - len(index.websites), num_concurrent)
+        num_urls = limit - len(index.websites)
         urls, queue = queue[:num_urls], queue[num_urls:]
 
         with concurrent.futures.ThreadPoolExecutor(
@@ -181,9 +185,14 @@ def main():
     index.save()
     logging.info("Saved index")
 
+    duration = time_ns() - start
     print_header("Statistics")
     print(f"- Indexed Websites: {len(index.websites)}")
     print(f"- Indexed Words: {index.word_count}")
+    print(f"- Duration: {format_time(duration)}")
+    print(
+        f"- Avg Duration/Websites: {format_time(duration/len(index.websites))}"
+    )
     print(f"- Websites in queue: {len(queue)}")
     print(f"- Saved in: {index_dir}")
 

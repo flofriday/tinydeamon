@@ -7,6 +7,7 @@ import math
 import hashlib
 import concurrent.futures
 import tempfile
+import shutil
 
 
 class Website:
@@ -74,13 +75,19 @@ class Index:
                         entry   web_id
     """
 
-    def __init__(self, directory: str, num_segments: Optional[int] = None):
+    def __init__(
+        self,
+        directory: str,
+        num_segments: Optional[int] = None,
+        delete_existing: bool = False,
+    ):
 
         # TODO: improve this split regex, I don't like that i its more an
         # educated guess than a well defined delimiter
         self._split_regex = re.compile(
             "[\\s\\.,;:?!\"'\\-_/\\(\\)\\[\\]<>%$€]+"
         )
+        self._entries_regex = re.compile("\\[([0-9]+)\\|([0-9,]+)\\]")
         self.directory: str = directory
         self.websites_file: str = os.path.join(directory, "websites.json")
         self.config_file: str = os.path.join(directory, "config.json")
@@ -88,6 +95,10 @@ class Index:
         self.unsaved_words: int = 0
         self.word_count: int = 0
         self._num_segments = num_segments
+
+        if delete_existing and os.path.exists(self.directory):
+            logging.info("Deleting existing index...")
+            shutil.rmtree(self.directory)
 
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
@@ -115,6 +126,10 @@ class Index:
                 self.word_count = config["word_count"]
                 self._num_segments = config["num_segments"]
 
+    ##################ä
+    # Text processing #
+    ##################ä
+
     def _normlize_split_text(self, text: str) -> List[str]:
         """
         This method normalizes the input text (lowercase) and splits it into
@@ -125,9 +140,11 @@ class Index:
         words = list(filter(lambda w: w.strip() != "", words))
         return words
 
+    ####################
+    # Segment handling #
+    ####################
+
     def _segment_name(self, word: str) -> str:
-        # TODO: the first 6 segments should not be hardcoded but
-        # be configurable
         id = (
             int.from_bytes(hashlib.md5(word.encode("utf-8")).digest(), "big")
             % self._num_segments
@@ -137,86 +154,8 @@ class Index:
     def _segment_to_filename(self, segment_name: str) -> str:
         return os.path.join(self.directory, segment_name + ".index")
 
-    def add_website(self, website: Website, text: str):
-        """
-        Add a website to the index.
-
-        Runtime: O(n) with n beeing the number of words that are associated
-        with the website.
-
-        Note: this method might write to disk, so some calls might be much
-        slower than others. To force a disk-write call `save`.
-        """
-
-        web_id = len(self.websites)
-        words = self._normlize_split_text(text)
-        website.word_count = len(words)
-        self.websites.append(website)
-        self.unsaved_words += len(words)
-        self.word_count += len(words)
-
-        for i, word in enumerate(words):
-            try:
-                self.words[word][web_id].append(i)
-            except KeyError:
-                try:
-                    self.words[word][web_id] = [i]
-                except KeyError:
-                    self.words[word] = {web_id: [i]}
-
-        if self.unsaved_words >= 1000_000:
-            logging.info("Flushing partial index to disk...")
-            self._save_words()
-
-    def _rank_bm25(
-        self,
-        index: Dict[str, Dict[int, List[int]]],
-        ids: List[int],
-        query: List[str],
-    ) -> List[int]:
-        """
-        This is an implemetation of the Okapi BM25 algorithm. It only checks
-        how good a document and a query matches, but asumes all documents have
-        the same quality (which of course isn't the case on the web).
-
-        Wikipedia: https://en.wikipedia.org/wiki/Okapi_BM25
-        """
-        ranked: List[Tuple[int, float]] = list()
-
-        # Assign ever document a score
-        N = len(self.websites)  # Number of documents
-        avgdl = self.avg_length
-
-        k1 = 1.2  # Tuning variable
-        b = 0.75  # Tuning variable
-        for id in ids:
-            score = 0  # Score of the current document (id)
-
-            D_abs = self.websites[id].word_count
-            for qi in query:
-                try:
-                    f = len(index[qi][id])  # Term frequenncy of qi in d
-                except KeyError:
-                    f = 0
-                n = len(index[qi])  # Number of documents containing qi
-
-                # inverse term frequency
-                idf = math.log((N - n + 0.51) / (n + 0.5) + 1)
-
-                score += idf * (
-                    (f * (k1 + 1)) / (f + k1 * (1 - b + b * (D_abs / avgdl)))
-                )
-
-            ranked.append((id, score))
-
-        # Sort by the score
-        ranked = sorted(ranked, key=lambda d: d[1], reverse=True)
-        print(ranked)
-        return list(map(lambda d: d[0], ranked))
-
     def _parse_entries(self, entries: str) -> Dict[int, List[int]]:
-        # TODO: precompile
-        entry_list = re.findall("\\[([0-9]+)\\|([0-9,]+)\\]", entries)
+        entry_list = self._entries_regex.findall(entries)
 
         result = dict()
         for web_id, positions in entry_list:
@@ -237,33 +176,6 @@ class Index:
                         return self._parse_entries(entries)
 
         return dict()
-
-    def find(self, query: str) -> List[Website]:
-        """
-        Find results for a query.
-        """
-
-        words = self._normlize_split_text(query)
-        ids: Set[int] = set()
-        index = dict()
-
-        # Find all sites that have at least one word of the query
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            entries = executor.map(self._load_segment, words)
-            for i, entry in enumerate(entries):
-                word = words[i]
-                index[word] = entry
-
-                try:
-                    current_ids = index[word].keys()
-                    ids.update(current_ids)
-                except KeyError:
-                    pass
-
-        # Rank the results to show the best on top
-        ids = self._rank_bm25(index, list(ids), words)
-        websites = list(map(lambda i: self.websites[i], ids))
-        return websites
 
     def _make_record(self, word: str, entry: str) -> bytes:
         return f"{word}:{entry}\n".encode("utf-8")
@@ -328,6 +240,41 @@ class Index:
         new_segment.close()
         os.rename(new_segment.name, seg_filename)
 
+    ##################
+    # Index Building #
+    ##################
+
+    def add_website(self, website: Website, text: str):
+        """
+        Add a website to the index.
+
+        Runtime: O(n) with n beeing the number of words that are associated
+        with the website.
+
+        Note: this method might write to disk, so some calls might be much
+        slower than others. To force a disk-write call `save`.
+        """
+
+        web_id = len(self.websites)
+        words = self._normlize_split_text(text)
+        website.word_count = len(words)
+        self.websites.append(website)
+        self.unsaved_words += len(words)
+        self.word_count += len(words)
+
+        for i, word in enumerate(words):
+            try:
+                self.words[word][web_id].append(i)
+            except KeyError:
+                try:
+                    self.words[word][web_id] = [i]
+                except KeyError:
+                    self.words[word] = {web_id: [i]}
+
+        if self.unsaved_words >= 1000_000:
+            logging.info("Flushing partial index to disk...")
+            self._save_words()
+
     def _save_words(self):
         segments = dict()
 
@@ -371,3 +318,80 @@ class Index:
         obj["num_segments"] = self._num_segments
         with open(self.config_file, "w") as file:
             json.dump(obj, file)
+
+    ##################
+    # Index Querying #
+    ##################
+
+    def _rank_bm25(
+        self,
+        index: Dict[str, Dict[int, List[int]]],
+        ids: List[int],
+        query: List[str],
+    ) -> List[int]:
+        """
+        This is an implemetation of the Okapi BM25 algorithm. It only checks
+        how good a document and a query matches, but asumes all documents have
+        the same quality (which of course isn't the case on the web).
+
+        Wikipedia: https://en.wikipedia.org/wiki/Okapi_BM25
+        """
+        ranked: List[Tuple[int, float]] = list()
+
+        # Assign ever document a score
+        N = len(self.websites)  # Number of documents
+        avgdl = self.avg_length
+
+        k1 = 1.2  # Tuning variable
+        b = 0.75  # Tuning variable
+        for id in ids:
+            score = 0  # Score of the current document (id)
+
+            D_abs = self.websites[id].word_count
+            for qi in query:
+                try:
+                    f = len(index[qi][id])  # Term frequenncy of qi in d
+                except KeyError:
+                    f = 0
+                n = len(index[qi])  # Number of documents containing qi
+
+                # inverse term frequency
+                idf = math.log((N - n + 0.51) / (n + 0.5) + 1)
+
+                score += idf * (
+                    (f * (k1 + 1)) / (f + k1 * (1 - b + b * (D_abs / avgdl)))
+                )
+
+            ranked.append((id, score))
+
+        # Sort by the score
+        ranked = sorted(ranked, key=lambda d: d[1], reverse=True)
+        print(ranked)
+        return list(map(lambda d: d[0], ranked))
+
+    def find(self, query: str) -> List[Website]:
+        """
+        Find results for a query.
+        """
+
+        words = self._normlize_split_text(query)
+        ids: Set[int] = set()
+        index = dict()
+
+        # Find all sites that have at least one word of the query
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            entries = executor.map(self._load_segment, words)
+            for i, entry in enumerate(entries):
+                word = words[i]
+                index[word] = entry
+
+                try:
+                    current_ids = index[word].keys()
+                    ids.update(current_ids)
+                except KeyError:
+                    pass
+
+        # Rank the results to show the best on top
+        ids = self._rank_bm25(index, list(ids), words)
+        websites = list(map(lambda i: self.websites[i], ids))
+        return websites
