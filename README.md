@@ -5,6 +5,12 @@ An experimental search engine
 
 **Try it out:** https://tinydeamon.com
 
+## About
+
+tinyDeamon is a experimental search engine (like google) that uses its own
+index and does not rely on google/bing etc. The main purpose is for me to learn
+how search engines work and not to replace any of the big players.
+
 ## Limitations
 
 - Basic result ranking ([BM25](https://en.wikipedia.org/wiki/Okapi_BM25))
