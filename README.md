@@ -20,6 +20,13 @@ how search engines work and not to replace any of the big players.
 - Crawler is single-threaded
 - No filters (while I am against censorship, there is content on the internet that is so disturbing that my searchengine shouldn't display it per default)
 
+## Roadmap
+
+[ ] Rewrite Storage to use mongoDB (and containerize application)
+[ ] Make crawler polite (parsing robots.txt etc.)
+[ ] Distribute crawler
+[ ] Improve Ranking (maybe pagerank 🤷‍♀️)
+
 ## Run it locally
 
 ### Requirements
